@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+html,body{margin:0;padding:0;background:#000;width:1080px;height:1920px;overflow:hidden}
+svg{display:block}
+text{font-family:"Carlito","DejaVu Sans",sans-serif;letter-spacing:2px}
+</style></head>
+<body>
+<svg id="s" width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <radialGradient id="bg" cx="50%" cy="46%" r="75%">
+    <stop offset="0" stop-color="#262320"/><stop offset="1" stop-color="#0c0b0a"/>
+  </radialGradient>
+  <pattern id="hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+    <line x1="0" y1="0" x2="0" y2="10" stroke="#d8d3c8" stroke-width="2.4" opacity="0.6"/>
+  </pattern>
+  <pattern id="hatchC" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+    <line x1="0" y1="0" x2="0" y2="10" stroke="#f2c14e" stroke-width="2.6" opacity="0.7"/>
+  </pattern>
+  <filter id="rough" x="0" y="0" width="1080" height="1920" filterUnits="userSpaceOnUse">
+    <feTurbulence id="t1" type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="1" result="warp"/>
+    <feDisplacementMap in="SourceGraphic" in2="warp" scale="3.2" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</defs>
+<rect width="1080" height="1920" fill="url(#bg)"/>
+<g id="art" filter="url(#rough)"></g>
+</svg>
+<script>
+const NS="http://www.w3.org/2000/svg";
+const art=document.getElementById("art");
+const W="#f1ede4",COR="#f2c14e",GRAY="#8f8b82",LG="#bdb9ae";
+const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
+const ease=x=>x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
+const prog=(t,a,b)=>clamp((t-a)/(b-a));
+function el(n,attrs,parent){const e=document.createElementNS(NS,n);for(const k in attrs)e.setAttribute(k,attrs[k]);(parent||art).appendChild(e);return e}
+
+const scenes=[
+  {a:0.0,o:3.7,e:4.2},
+  {a:3.9,o:9.6,e:10.1},
+  {a:9.9,o:13.0,e:13.5},
+  {a:13.2,o:24.3,e:24.8},
+  {a:24.7,o:32.9,e:33.4},
+  {a:33.2,o:99,e:100}
+];
+const sg=scenes.map(()=>el("g",{}));
+const wm=el("text",{x:540,y:235,"font-size":36,fill:"#8f8b82","text-anchor":"middle","font-weight":400,opacity:0.55,"letter-spacing":4});wm.textContent="@chalkonomics";
+const items=[];
+const sfx=[];
+
+function text(s,txt,x,y,size,color,t0,t1,anchor="middle",weight=700,ls=2){
+  const g=el("g",{},sg[s]);
+  const te=el("text",{x,y,"font-size":size,fill:color,"text-anchor":anchor,"font-weight":weight,"letter-spacing":ls},g);
+  te.textContent=txt;
+  const bb=te.getBBox();
+  const id="c"+items.length;
+  const cp=el("clipPath",{id},g);
+  const r=el("rect",{x:bb.x-10,y:bb.y-10,width:0,height:bb.height+20},cp);
+  te.setAttribute("clip-path","url(#"+id+")");
+  items.push({k:"text",r,bb,t0,t1});
+}
+const kicker=(s,txt,t0,t1)=>text(s,txt,540,400,34,GRAY,t0,t1,"middle",700,8);
+function path(s,d,color,w,t0,t1,extra){
+  const p=el("path",Object.assign({d,fill:"none",stroke:color,"stroke-width":w,"stroke-linecap":"round","stroke-linejoin":"round",pathLength:1,"stroke-dasharray":1,"stroke-dashoffset":1},extra||{}),sg[s]);
+  items.push({k:"path",p,t0,t1});
+}
+function shade(s,d,pat,t0,t1,evenodd){
+  const p=el("path",{d,fill:"url(#"+pat+")",stroke:"none","fill-rule":evenodd?"evenodd":"nonzero",opacity:0},sg[s]);
+  items.push({k:"fadeIn",node:p,t0,t1});
+}
+const circ=(cx,cy,r)=>`M${cx} ${cy-r} A${r} ${r} 0 1 1 ${cx-0.01} ${cy-r}`;
+function coin(s,cx,cy,r,col,t0,t1,label,fs,lc){
+  path(s,circ(cx,cy,r),col,4,t0,t1);
+  if(r>=60){
+    path(s,circ(cx,cy,r*0.8),col,2.5,t0+(t1-t0)*0.4,t1+0.1);
+    shade(s,circ(cx,cy,r)+" "+circ(cx,cy,r*0.8),"hatch",t1,t1+0.5,true);
+  }
+  if(label) text(s,label,cx,cy+fs*0.34,fs,lc||col,t1-0.1,t1+0.45);
+  sfx.push({k:"pop",t:t1});
+}
+function star(s,cx,cy,z,t0){
+  path(s,`M${cx-z} ${cy} L${cx+z} ${cy} M${cx} ${cy-z} L${cx} ${cy+z}`,LG,3,t0,t0+0.3);
+  sfx.push({k:"sp",t:t0});
+}
+function ground(s,y,t0,t1){path(s,`M60 ${y} L1020 ${y}`,LG,3,t0,t1)}
+function arrow(s,x1,y1,x2,y2,col,t0,t1){
+  const a=Math.atan2(y2-y1,x2-x1),h=22,sp=0.5;
+  path(s,`M${x1} ${y1} L${x2} ${y2} M${x2-h*Math.cos(a-sp)} ${y2-h*Math.sin(a-sp)} L${x2} ${y2} L${x2-h*Math.cos(a+sp)} ${y2-h*Math.sin(a+sp)}`,col,4,t0,t1);
+}
+function arrowQ(s,x1,y1,qx,qy,x2,y2,col,t0,t1){
+  const a=Math.atan2(y2-qy,x2-qx),h=22,sp=0.5;
+  path(s,`M${x1} ${y1} Q ${qx} ${qy} ${x2} ${y2} M${x2-h*Math.cos(a-sp)} ${y2-h*Math.sin(a-sp)} L${x2} ${y2} L${x2-h*Math.cos(a+sp)} ${y2-h*Math.sin(a+sp)}`,col,4,t0,t1);
+}
+
+
+// ---------- Scene 0: title ----------
+kicker(0,"LESSON 01",0.3,0.9);
+coin(0,540,1120,200,W,0.5,1.5,"$",230,COR);
+ground(0,1320,1.2,1.7);
+star(0,250,930,15,1.5); star(0,840,860,17,1.7); star(0,230,1200,12,1.9); star(0,850,1150,14,2.0);
+text(0,"Compound",540,540,128,W,2.1,2.8);
+text(0,"interest.",540,685,128,COR,2.7,3.4);
+text(0,"money that earns money",540,1470,48,LG,2.9,3.6,"middle",400);
+
+// ---------- Scene 1: year one ----------
+kicker(1,"1 · YEAR ONE",4.0,4.5);
+text(1,"Start with $1,000,",540,520,88,W,4.0,5.2);
+text(1,"earning 7% a year.",540,625,88,COR,5.6,6.8);
+coin(1,380,1120,170,W,5.2,6.0,"$1,000",70,COR);
+ground(1,1290,5.8,6.2);
+arrowQ(1,520,975,710,890,712,1125,COR,6.9,7.4);
+text(1,"+7%",770,1010,46,COR,7.2,7.6,"start");
+coin(1,720,1226,64,W,8.4,8.9,"$70",40,COR);
+text(1,"$1,000 + $70 = $1,070",540,1450,50,LG,8.9,9.5,"middle",400);
+
+// ---------- Scene 2: year two ----------
+kicker(2,"2 · YEAR TWO",9.95,10.4);
+text(2,"Now the interest",540,520,88,W,10.0,10.9);
+text(2,"earns interest.",540,625,88,COR,10.8,11.6);
+coin(2,280,1140,150,W,10.9,11.4,"$1,070",58,COR);
+ground(2,1290,11.2,11.5);
+coin(2,520,1226,64,W,11.4,11.8);
+text(2,"+$74.90",520,1352,38,LG,11.7,12.1,"middle",400);
+coin(2,690,1256,34,COR,11.9,12.2);
+text(2,"+$4.90",690,1352,38,COR,12.1,12.5,"middle",400);
+text(2,"$1,070 + $74.90 = $1,144.90",540,1450,48,LG,11.9,12.5,"middle",400);
+text(2,"the extra $4.90 is interest on interest",540,1530,42,COR,12.4,13.0,"middle",400);
+
+// ---------- Scene 3: chart ----------
+const X0=130,CW=760,Y0=1440,CH=640,MAX=8000;
+const vy=v=>Y0-v/MAX*CH;
+kicker(3,"3 · 30 YEARS LATER",13.35,13.85);
+text(3,"Same $1,000.",540,520,84,W,13.4,14.1);
+text(3,"Very different results.",540,625,84,COR,14.0,14.9);
+path(3,`M${X0} ${Y0-CH-20} L${X0} ${Y0} L${X0+CW+20} ${Y0}`,LG,4,14.3,14.9);
+["0","10","20","30 yrs"].forEach((l,i)=>{
+  const tx=el("text",{x:X0+CW*i/3,y:Y0+58,"font-size":40,fill:GRAY,"text-anchor":i==3?"end":"middle","font-weight":400},sg[3]);
+  tx.textContent=l; tx.setAttribute("opacity",0); items.push({k:"fadeIn",node:tx,t0:14.7,t1:15.1});
+});
+const simplePts=[],compPts=[];
+for(let y=0;y<=30;y++){
+  const x=X0+CW*y/30;
+  simplePts.push([x,vy(1000+70*y)]);
+  compPts.push([x,vy(1000*Math.pow(1.07,y))]);
+}
+const fmt=a=>a.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ");
+const lcsR=el("rect",{x:0,y:0,width:0,height:1920},el("clipPath",{id:"lcs"},sg[3]));
+const lccR=el("rect",{x:0,y:0,width:0,height:1920},el("clipPath",{id:"lcc"},sg[3]));
+const gH=el("g",{"clip-path":"url(#lcc)"},sg[3]);
+el("polygon",{points:fmt(compPts)+" "+fmt(simplePts.slice().reverse()),fill:"url(#hatchC)"},gH);
+const gS=el("g",{"clip-path":"url(#lcs)"},sg[3]);
+el("polyline",{points:fmt(simplePts),fill:"none",stroke:W,"stroke-width":5,"stroke-linecap":"round","stroke-linejoin":"round"},gS);
+const gC=el("g",{"clip-path":"url(#lcc)"},sg[3]);
+el("polyline",{points:fmt(compPts),fill:"none",stroke:COR,"stroke-width":7,"stroke-linecap":"round","stroke-linejoin":"round"},gC);
+const SA=15.0,SB=17.2,LA=17.9,LB=20.6;
+const pops=[];
+[[10,1967],[20,3870],[30,7612]].forEach(([yr,val])=>{
+  const x=X0+CW*yr/30,y=vy(val);
+  pops.push({node:el("circle",{cx:x,cy:y,r:11,fill:COR},sg[3]),thr:yr/30,src:"c"});
+  const lab=el("text",{x:yr==30?x:x-12,y:y-30,"font-size":46,fill:COR,"text-anchor":"end","font-weight":700},sg[3]);
+  lab.textContent="$"+val.toLocaleString("en-US"); pops.push({node:lab,thr:yr/30,src:"c"});
+});
+{
+  pops.push({node:el("circle",{cx:X0+CW,cy:vy(3100),r:10,fill:W},sg[3]),thr:1,src:"s"});
+  const l=el("text",{x:X0+CW,y:vy(3100)+130,"font-size":42,fill:LG,"text-anchor":"end","font-weight":400},sg[3]);
+  l.textContent="Simple: $3,100"; pops.push({node:l,thr:1,src:"s"});
+  const l2=el("text",{x:X0+CW,y:vy(7612)-92,"font-size":40,fill:GRAY,"text-anchor":"end","font-weight":400},sg[3]);
+  l2.textContent="Compound"; pops.push({node:l2,thr:1,src:"c"});
+}
+sfx.push({k:"ding",t:SB-0.1,n:0});
+[1/3,2/3,1].forEach((thr,i)=>{
+  for(let t=LA;t<=LB;t+=0.01){ if(ease(prog(t,LA,LB))>=thr-0.02){ sfx.push({k:"ding",t,n:i}); break; } }
+});
+star(3,300,960,14,20.8); star(3,520,860,16,21.1);
+text(3,"+$4,512 extra, from time alone",540,1590,50,COR,21.5,24.0,"middle",400);
+
+// ---------- Scene 4: rule of 72 ----------
+kicker(4,"4 · THE SHORTCUT",24.85,25.3);
+text(4,"Divide 72 by the rate,",540,520,84,W,24.9,26.0);
+text(4,"get years to double.",540,625,84,COR,25.9,26.9);
+coin(4,170,900,70,W,26.4,26.9,"$",70,COR);
+arrow(4,260,900,340,900,LG,26.8,27.1);
+path(4,circ(470,900,80),W,4,27.0,27.5);
+path(4,"M470 900 L470 845 M470 900 L510 920",W,4,27.5,27.8);
+text(4,"10 yrs",470,1030,40,LG,27.6,28.0,"middle",400);
+arrow(4,570,900,650,900,LG,27.9,28.2);
+coin(4,730,900,44,W,28.1,28.5,"$",44,COR);
+coin(4,830,900,44,W,28.4,28.8,"$",44,COR);
+text(4,"72 ÷ 7 ≈ 10",540,1230,120,W,28.6,29.6);
+text(4,"years to double your money",540,1320,48,LG,30.7,31.7,"middle",400);
+text(4,"$1,000 → about $2,000",540,1420,52,COR,31.8,32.6,"middle",400);
+
+// ---------- Scene 5: takeaway ----------
+kicker(5,"5 · THE TAKEAWAY",33.3,33.8);
+text(5,"Start early.",540,520,112,W,33.3,34.1);
+text(5,"Let time do the work.",540,640,84,COR,34.4,35.7);
+ground(5,1390,34.9,35.3);
+path(5,"M440 1240 L640 1240 L618 1390 L462 1390 Z",W,4,35.1,35.7);
+shade(5,"M540 1240 L640 1240 L618 1390 L540 1390 Z","hatch",35.7,36.0);
+path(5,"M540 1240 C 540 1130 548 1030 540 920",W,4,35.6,36.2);
+path(5,"M541 1150 C 470 1145 430 1095 428 1035 C 500 1035 536 1085 541 1150",W,4,36.1,36.5);
+path(5,"M543 1080 C 612 1075 652 1025 654 965 C 582 965 546 1015 543 1080",W,4,36.3,36.7);
+coin(5,540,830,85,W,36.4,37.0,"$",84,COR);
+star(5,330,760,14,36.9); star(5,760,720,16,37.0); star(5,780,950,12,37.1);
+text(5,"Example only · not financial advice",540,1520,38,GRAY,36.6,37.4,"middle",400);
+
+let lastSeed=-1;
+function render(t){
+  const seed=Math.floor(t*8)%40+1;
+  if(seed!==lastSeed){lastSeed=seed;document.getElementById("t1").setAttribute("seed",seed)}
+  scenes.forEach((s,i)=>{
+    const a=Math.min(prog(t,s.a,s.a+0.25),1-prog(t,s.o,s.e));
+    sg[i].setAttribute("opacity",(t>=s.a&&t<=s.e)?(i==0?1-prog(t,s.o,s.e):a):0);
+    sg[i].style.display=(t>=s.a-0.01&&t<=s.e)?"":"none";
+  });
+  items.forEach(it=>{
+    if(it.k==="text"){
+      it.r.setAttribute("width",Math.max(0,(it.bb.width+20)*ease(prog(t,it.t0,it.t1))));
+    }else if(it.k==="path"){
+      const p=ease(prog(t,it.t0,it.t1));
+      it.p.setAttribute("stroke-dashoffset",1-p);
+      it.p.setAttribute("opacity",p>0?1:0);
+    }else if(it.k==="fadeIn"){
+      it.node.setAttribute("opacity",prog(t,it.t0,it.t1));
+    }
+  });
+  const ps=ease(prog(t,SA,SB)), cp=ease(prog(t,LA,LB));
+  lcsR.setAttribute("width",X0+CW*ps+14);
+  lccR.setAttribute("width",X0+CW*cp+14);
+  pops.forEach(p=>{const v=p.src==="s"?ps:cp;p.node.setAttribute("opacity",clamp((v-p.thr+0.02)/0.05))});
+}
+window.render=render;
+sfx.push({k:"end",t:36.9});
+scenes.slice(0,5).forEach(s=>sfx.push({k:"wh",t:s.o}));
+window.getSfx=()=>JSON.stringify(sfx);
+window.DURATION=37.6;
+</script>
+</body></html>
