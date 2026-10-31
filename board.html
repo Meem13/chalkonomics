@@ -1,237 +1,412 @@
 <!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <style>
-html,body{margin:0;padding:0;background:#000;width:1080px;height:1920px;overflow:hidden}
+html,body{margin:0;padding:0;background:#000;width:1920px;height:1080px;overflow:hidden}
 svg{display:block}
 text{font-family:"Carlito","DejaVu Sans",sans-serif;letter-spacing:2px}
 </style></head>
 <body>
-<svg id="s" width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
+<svg id="s" width="1920" height="1080" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
 <defs>
-  <radialGradient id="bg" cx="50%" cy="46%" r="75%">
-    <stop offset="0" stop-color="#262320"/><stop offset="1" stop-color="#0c0b0a"/>
-  </radialGradient>
-  <pattern id="hatch" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-    <line x1="0" y1="0" x2="0" y2="10" stroke="#d8d3c8" stroke-width="2.4" opacity="0.6"/>
-  </pattern>
-  <pattern id="hatchC" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-    <line x1="0" y1="0" x2="0" y2="10" stroke="#f2c14e" stroke-width="2.6" opacity="0.7"/>
-  </pattern>
-  <filter id="rough" x="0" y="0" width="1080" height="1920" filterUnits="userSpaceOnUse">
-    <feTurbulence id="t1" type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="1" result="warp"/>
-    <feDisplacementMap in="SourceGraphic" in2="warp" scale="3.2" xChannelSelector="R" yChannelSelector="G"/>
+  <radialGradient id="bg" cx="50%" cy="42%" r="80%"><stop offset="0" stop-color="#2a2f3a"/><stop offset="1" stop-color="#0d0f13"/></radialGradient>
+  <filter id="dust" x="0" y="0" width="1920" height="1080" filterUnits="userSpaceOnUse">
+    <feTurbulence type="fractalNoise" baseFrequency="0.008 0.014" numOctaves="3" seed="5"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 -0.30"/>
+  </filter>
+  <pattern id="hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="12" stroke="#ffffff" stroke-width="3" opacity="0.5"/></pattern>
+  <filter id="chalk" x="0" y="0" width="1920" height="1080" filterUnits="userSpaceOnUse">
+    <feTurbulence id="t1" type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="1" result="warp"/>
+    <feDisplacementMap in="SourceGraphic" in2="warp" scale="5" xChannelSelector="R" yChannelSelector="G" result="d"/>
+    <feTurbulence id="t2" type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="1" result="grain"/>
+    <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  3.2 0 0 0 -0.45" result="mask"/>
+    <feComposite in="d" in2="mask" operator="in"/>
   </filter>
 </defs>
-<rect width="1080" height="1920" fill="url(#bg)"/>
-<g id="art" filter="url(#rough)"></g>
+<rect width="1920" height="1080" fill="url(#bg)"/>
+<rect width="1920" height="1080" filter="url(#dust)" opacity="0.08"/>
+<g id="art" filter="url(#chalk)"></g>
+<g id="caps"></g>
 </svg>
 <script>
 const NS="http://www.w3.org/2000/svg";
-const art=document.getElementById("art");
-const W="#f1ede4",COR="#f2c14e",GRAY="#8f8b82",LG="#bdb9ae";
+const art=document.getElementById("art"), caps=document.getElementById("caps");
+const W="#ffffff",YEL="#ffd23f",PINK="#ff5c8a",CYAN="#35d0ff",GRN="#5be584",ORG="#ff9a3c",LG="#c9c4b8",GRAY="#8e93a0";
 const clamp=(x,a=0,b=1)=>Math.min(b,Math.max(a,x));
 const ease=x=>x<.5?2*x*x:1-Math.pow(-2*x+2,2)/2;
 const prog=(t,a,b)=>clamp((t-a)/(b-a));
+const rad=d=>d*Math.PI/180;
 function el(n,attrs,parent){const e=document.createElementNS(NS,n);for(const k in attrs)e.setAttribute(k,attrs[k]);(parent||art).appendChild(e);return e}
 
-const scenes=[
-  {a:0.0,o:3.7,e:4.2},
-  {a:3.9,o:9.6,e:10.1},
-  {a:9.9,o:13.0,e:13.5},
-  {a:13.2,o:24.3,e:24.8},
-  {a:24.7,o:32.9,e:33.4},
-  {a:33.2,o:99,e:100}
-];
+// scene start times (from the voiceover); each scene fades out as the next fades in
+const S=[0,18.4,52.6,78.4,107.4,135.5,155.9,190.0,202.9];
+const END=212.0;
+const scenes=S.map((a,i)=>({a,o:(S[i+1]??END+5)-0.2,e:(S[i+1]??END+6)+0.3}));
 const sg=scenes.map(()=>el("g",{}));
-const wm=el("text",{x:540,y:235,"font-size":36,fill:"#8f8b82","text-anchor":"middle","font-weight":400,opacity:0.55,"letter-spacing":4});wm.textContent="@chalkonomics";
-const items=[];
-const sfx=[];
+const items=[], sfx=[];
+const P=s=>typeof s==="number"?sg[s]:s;
 
+// ---------- helpers ----------
 function text(s,txt,x,y,size,color,t0,t1,anchor="middle",weight=700,ls=2){
-  const g=el("g",{},sg[s]);
+  const g=el("g",{},P(s));
   const te=el("text",{x,y,"font-size":size,fill:color,"text-anchor":anchor,"font-weight":weight,"letter-spacing":ls},g);
   te.textContent=txt;
-  const bb=te.getBBox();
-  const id="c"+items.length;
-  const cp=el("clipPath",{id},g);
-  const r=el("rect",{x:bb.x-10,y:bb.y-10,width:0,height:bb.height+20},cp);
+  const bb=te.getBBox(), id="c"+items.length;
+  const r=el("rect",{x:bb.x-10,y:bb.y-10,width:0,height:bb.height+20},el("clipPath",{id},g));
   te.setAttribute("clip-path","url(#"+id+")");
   items.push({k:"text",r,bb,t0,t1});
 }
-const kicker=(s,txt,t0,t1)=>text(s,txt,540,400,34,GRAY,t0,t1,"middle",700,8);
-function path(s,d,color,w,t0,t1,extra){
-  const p=el("path",Object.assign({d,fill:"none",stroke:color,"stroke-width":w,"stroke-linecap":"round","stroke-linejoin":"round",pathLength:1,"stroke-dasharray":1,"stroke-dashoffset":1},extra||{}),sg[s]);
+const kicker=(s,txt,t0,t1)=>text(s,txt,960,95,30,CYAN,t0,t1,"middle",700,8);
+function path(s,d,color,w,t0,t1){
+  const p=el("path",{d,fill:"none",stroke:color,"stroke-width":w,"stroke-linecap":"round","stroke-linejoin":"round",pathLength:1,"stroke-dasharray":1,"stroke-dashoffset":1},P(s));
   items.push({k:"path",p,t0,t1});
 }
-function shade(s,d,pat,t0,t1,evenodd){
-  const p=el("path",{d,fill:"url(#"+pat+")",stroke:"none","fill-rule":evenodd?"evenodd":"nonzero",opacity:0},sg[s]);
-  items.push({k:"fadeIn",node:p,t0,t1});
+function fade(node,t0,t1){node.setAttribute("opacity",0);items.push({k:"fadeIn",node,t0,t1})}
+function fadeOut(node,t0,t1){items.push({k:"fadeOut",node,t0,t1})}
+function popG(s,cx,cy,t0){const g=el("g",{opacity:0},P(s));items.push({k:"pop",g,cx,cy,t0});return g}
+function popText(s,txt,x,y,size,color,t0,anchor="middle"){
+  const g=popG(s,x,y-size*0.3,t0);const t=el("text",{x,y,"font-size":size,fill:color,"text-anchor":anchor,"font-weight":700},g);t.textContent=txt;return g;
 }
 const circ=(cx,cy,r)=>`M${cx} ${cy-r} A${r} ${r} 0 1 1 ${cx-0.01} ${cy-r}`;
-function coin(s,cx,cy,r,col,t0,t1,label,fs,lc){
-  path(s,circ(cx,cy,r),col,4,t0,t1);
-  if(r>=60){
-    path(s,circ(cx,cy,r*0.8),col,2.5,t0+(t1-t0)*0.4,t1+0.1);
-    shade(s,circ(cx,cy,r)+" "+circ(cx,cy,r*0.8),"hatch",t1,t1+0.5,true);
-  }
-  if(label) text(s,label,cx,cy+fs*0.34,fs,lc||col,t1-0.1,t1+0.45);
-  sfx.push({k:"pop",t:t1});
+function coin(s,cx,cy,r,col,t0,label,fs,lc){
+  const g=popG(s,cx,cy,t0);
+  el("circle",{cx,cy,r,fill:col,"fill-opacity":0.2,stroke:col,"stroke-width":Math.max(6,r*0.07)},g);
+  if(r>=40) el("circle",{cx,cy,r:r*0.78,fill:"none",stroke:col,"stroke-width":Math.max(3,r*0.03)},g);
+  if(label){const tx=el("text",{x:cx,y:cy+fs*0.34,"font-size":fs,fill:lc||col,"text-anchor":"middle","font-weight":700},g);tx.textContent=label}
+  sfx.push({k:"pop",t:t0});return g;
 }
-function star(s,cx,cy,z,t0){
-  path(s,`M${cx-z} ${cy} L${cx+z} ${cy} M${cx} ${cy-z} L${cx} ${cy+z}`,LG,3,t0,t0+0.3);
+function star(s,cx,cy,z,col,t0){
+  const q=z*0.28,g=popG(s,cx,cy,t0);
+  el("path",{d:`M${cx} ${cy-z} L${cx+q} ${cy-q} L${cx+z} ${cy} L${cx+q} ${cy+q} L${cx} ${cy+z} L${cx-q} ${cy+q} L${cx-z} ${cy} L${cx-q} ${cy-q} Z`,fill:col},g);
   sfx.push({k:"sp",t:t0});
 }
-function ground(s,y,t0,t1){path(s,`M60 ${y} L1020 ${y}`,LG,3,t0,t1)}
-function arrow(s,x1,y1,x2,y2,col,t0,t1){
-  const a=Math.atan2(y2-y1,x2-x1),h=22,sp=0.5;
-  path(s,`M${x1} ${y1} L${x2} ${y2} M${x2-h*Math.cos(a-sp)} ${y2-h*Math.sin(a-sp)} L${x2} ${y2} L${x2-h*Math.cos(a+sp)} ${y2-h*Math.sin(a+sp)}`,col,4,t0,t1);
-}
+function ground(s,x0,x1,y,t0,t1,col){path(s,`M${x0} ${y} L${x1} ${y}`,col||LG,6,t0,t1)}
 function arrowQ(s,x1,y1,qx,qy,x2,y2,col,t0,t1){
-  const a=Math.atan2(y2-qy,x2-qx),h=22,sp=0.5;
-  path(s,`M${x1} ${y1} Q ${qx} ${qy} ${x2} ${y2} M${x2-h*Math.cos(a-sp)} ${y2-h*Math.sin(a-sp)} L${x2} ${y2} L${x2-h*Math.cos(a+sp)} ${y2-h*Math.sin(a+sp)}`,col,4,t0,t1);
+  const a=Math.atan2(y2-qy,x2-qx),h=30,sp=0.5;
+  path(s,`M${x1} ${y1} Q ${qx} ${qy} ${x2} ${y2} M${x2-h*Math.cos(a-sp)} ${y2-h*Math.sin(a-sp)} L${x2} ${y2} L${x2-h*Math.cos(a+sp)} ${y2-h*Math.sin(a+sp)}`,col,7,t0,t1);
+}
+const arrow=(s,x1,y1,x2,y2,col,t0,t1)=>arrowQ(s,x1,y1,(x1+x2)/2,(y1+y2)/2,x2,y2,col,t0,t1);
+const fmtK=v=>v>=200000?"$"+Math.round(v/1000)+"K":"$"+(v/1000).toFixed(1)+"K";
+function countK(s,x,y,size,col,t0,t1,from,to){
+  const g=popG(s,x,y-size*0.3,t0);
+  const tx=el("text",{x,y,"font-size":size,fill:col,"text-anchor":"middle","font-weight":700},g);
+  tx.textContent=fmtK(from);
+  items.push({k:"count",node:tx,t0:t0+0.1,t1,from,to});
+  sfx.push({k:"ding",t:t1,n:1});return g;
+}
+function stickman(s,cx,gy,k,col,t0,fn,bow){
+  const g=popG(s,cx,gy,t0);
+  const hy=gy-300*k, sy=hy+54*k, hip=gy-120*k;
+  const ln=(d)=>el("path",{d,fill:"none",stroke:col,"stroke-width":9*k+2,"stroke-linecap":"round","stroke-linejoin":"round"},g);
+  el("circle",{cx,cy:hy,r:34*k,fill:"none",stroke:col,"stroke-width":9*k+2},g);
+  ln(`M${cx} ${hy+34*k} L${cx} ${hip}`); ln(`M${cx} ${hip} L${cx-45*k} ${gy}`); ln(`M${cx} ${hip} L${cx+45*k} ${gy}`);
+  el("circle",{cx:cx-12*k,cy:hy-4*k,r:4.5*k,fill:col},g); el("circle",{cx:cx+12*k,cy:hy-4*k,r:4.5*k,fill:col},g);
+  ln(`M${cx-14*k} ${hy+11*k} Q ${cx} ${hy+28*k} ${cx+14*k} ${hy+11*k}`);
+  el("circle",{cx:cx-24*k,cy:hy+10*k,r:6*k,fill:PINK},g); el("circle",{cx:cx+24*k,cy:hy+10*k,r:6*k,fill:PINK},g);
+  if(bow){el("circle",{cx:cx+26*k,cy:hy-34*k,r:10*k,fill:bow},g);el("circle",{cx:cx+44*k,cy:hy-30*k,r:10*k,fill:bow},g);}
+  const ra=ln("M0 0"), la=ln("M0 0");
+  items.push({k:"stick",ra,la,cx,sy,L:95*k,fn});
+}
+const idle=(ph)=>(t)=>[22+5*Math.sin(2*Math.PI*0.7*t+ph),-(22+5*Math.sin(2*Math.PI*0.7*t+ph+1))];
+const wave=(t)=>[140+22*Math.sin(2*Math.PI*2.4*t),-20];
+function hbar(s,x0,x1,y,h,col,t0,t1){
+  const r=el("rect",{x:x0,y:y-h/2,width:0,height:h,fill:col,"fill-opacity":0.35,stroke:col,"stroke-width":6},P(s));
+  items.push({k:"hbar",r,x0,x1,t0,t1});
+}
+function sbar(s,cx,w,base,hy,hg,ty0,ty1,tg0,tg1){
+  const ry=el("rect",{x:cx-w/2,width:w,fill:YEL,"fill-opacity":0.38,stroke:YEL,"stroke-width":6,opacity:0},P(s));
+  const rg=el("rect",{x:cx-w/2,width:w,fill:GRN,"fill-opacity":0.38,stroke:GRN,"stroke-width":6,opacity:0},P(s));
+  items.push({k:"sbar",ry,rg,base,hy,hg,ty0,ty1,tg0,tg1});
 }
 
-
-// ---------- Scene 0: title ----------
-kicker(0,"LESSON 01",0.3,0.9);
-coin(0,540,1120,200,W,0.5,1.5,"$",230,COR);
-ground(0,1320,1.2,1.7);
-star(0,250,930,15,1.5); star(0,840,860,17,1.7); star(0,230,1200,12,1.9); star(0,850,1150,14,2.0);
-text(0,"Compound",540,540,128,W,2.1,2.8);
-text(0,"interest.",540,685,128,COR,2.7,3.4);
-text(0,"money that earns money",540,1470,48,LG,2.9,3.6,"middle",400);
-
-// ---------- Scene 1: year one ----------
-kicker(1,"1 · YEAR ONE",4.0,4.5);
-text(1,"Start with $1,000,",540,520,88,W,4.0,5.2);
-text(1,"earning 7% a year.",540,625,88,COR,5.6,6.8);
-coin(1,380,1120,170,W,5.2,6.0,"$1,000",70,COR);
-ground(1,1290,5.8,6.2);
-arrowQ(1,520,975,710,890,712,1125,COR,6.9,7.4);
-text(1,"+7%",770,1010,46,COR,7.2,7.6,"start");
-coin(1,720,1226,64,W,8.4,8.9,"$70",40,COR);
-text(1,"$1,000 + $70 = $1,070",540,1450,50,LG,8.9,9.5,"middle",400);
-
-// ---------- Scene 2: year two ----------
-kicker(2,"2 · YEAR TWO",9.95,10.4);
-text(2,"Now the interest",540,520,88,W,10.0,10.9);
-text(2,"earns interest.",540,625,88,COR,10.8,11.6);
-coin(2,280,1140,150,W,10.9,11.4,"$1,070",58,COR);
-ground(2,1290,11.2,11.5);
-coin(2,520,1226,64,W,11.4,11.8);
-text(2,"+$74.90",520,1352,38,LG,11.7,12.1,"middle",400);
-coin(2,690,1256,34,COR,11.9,12.2);
-text(2,"+$4.90",690,1352,38,COR,12.1,12.5,"middle",400);
-text(2,"$1,070 + $74.90 = $1,144.90",540,1450,48,LG,11.9,12.5,"middle",400);
-text(2,"the extra $4.90 is interest on interest",540,1530,42,COR,12.4,13.0,"middle",400);
-
-// ---------- Scene 3: chart ----------
-const X0=130,CW=760,Y0=1440,CH=640,MAX=8000;
-const vy=v=>Y0-v/MAX*CH;
-kicker(3,"3 · 30 YEARS LATER",13.35,13.85);
-text(3,"Same $1,000.",540,520,84,W,13.4,14.1);
-text(3,"Very different results.",540,625,84,COR,14.0,14.9);
-path(3,`M${X0} ${Y0-CH-20} L${X0} ${Y0} L${X0+CW+20} ${Y0}`,LG,4,14.3,14.9);
-["0","10","20","30 yrs"].forEach((l,i)=>{
-  const tx=el("text",{x:X0+CW*i/3,y:Y0+58,"font-size":40,fill:GRAY,"text-anchor":i==3?"end":"middle","font-weight":400},sg[3]);
-  tx.textContent=l; tx.setAttribute("opacity",0); items.push({k:"fadeIn",node:tx,t0:14.7,t1:15.1});
+// ---------- captions from the aligned voiceover ----------
+const SEG=[{"t0": 0.0, "t1": 0.73898, "text": "Two friends."}, {"t0": 1.26619, "t1": 4.67907, "text": "One invests twenty-four thousand dollars and then stops forever."}, {"t0": 5.23633, "t1": 7.78986, "text": "The other invests seventy-two thousand dollars,"}, {"t0": 8.10871, "t1": 9.14667, "text": "three times as much."}, {"t0": 9.6507, "t1": 11.519, "text": "Who ends up with more money at sixty-five?"}, {"t0": 12.2615, "t1": 14.3065, "text": "The answer surprises almost everyone,"}, {"t0": 14.6483, "t1": 16.2938, "text": "and it comes down to one idea:"}, {"t0": 16.8127, "t1": 17.8817, "text": "compound interest."}, {"t0": 18.717, "t1": 20.4599, "text": "Meet Early Ed and Late Lia."}, {"t0": 20.9928, "t1": 21.9705, "text": "Ed is twenty-five."}, {"t0": 22.5371, "t1": 26.5572, "text": "He puts two hundred dollars a month into an investment that earns seven percent a year."}, {"t0": 27.0615, "t1": 29.5057, "text": "He does this for ten years, until he's thirty-five."}, {"t0": 30.1098, "t1": 31.1195, "text": "Then he stops."}, {"t0": 31.5697, "t1": 33.1382, "text": "He never adds another dollar."}, {"t0": 33.8481, "t1": 35.2702, "text": "Lia is also twenty-five,"}, {"t0": 35.6502, "t1": 36.5908, "text": "but she waits."}, {"t0": 37.0387, "t1": 40.7028, "text": "She starts at thirty-five, and she invests the same two hundred dollars a month,"}, {"t0": 41.1402, "t1": 44.9637, "text": "but she keeps going for thirty years, all the way to sixty-five."}, {"t0": 45.6504, "t1": 48.6084, "text": "Seven percent a year is just an example to keep the math simple."}, {"t0": 49.0937, "t1": 52.1903, "text": "Real returns go up and down, and nobody can promise them."}, {"t0": 52.9451, "t1": 55.8243, "text": "Before we follow them, here's how compound interest works."}, {"t0": 56.3665, "t1": 58.2388, "text": "Imagine rolling a snowball down a hill."}, {"t0": 58.8245, "t1": 60.0088, "text": "At first it's tiny."}, {"t0": 60.5084, "t1": 62.2712, "text": "But as it rolls, it picks up snow,"}, {"t0": 62.6058, "t1": 65.7615, "text": "and the bigger it gets, the more snow it picks up with every turn."}, {"t0": 66.3572, "t1": 67.6533, "text": "Money does the same thing."}, {"t0": 68.1543, "t1": 69.4127, "text": "Your money earns interest."}, {"t0": 69.8831, "t1": 71.8512, "text": "Then that interest earns interest too."}, {"t0": 72.2894, "t1": 74.8618, "text": "And then the interest on the interest earns even more."}, {"t0": 75.3581, "t1": 77.9673, "text": "The longer it rolls, the faster it grows."}, {"t0": 78.654, "t1": 79.4482, "text": "Let's start with Ed."}, {"t0": 79.9499, "t1": 83.013, "text": "In his first ten years he puts in twenty-four thousand dollars."}, {"t0": 83.4897, "t1": 87.3482, "text": "By thirty-five, that has grown to about thirty-four thousand six hundred dollars."}, {"t0": 87.6767, "t1": 88.0974, "text": "Not bad."}, {"t0": 88.5841, "t1": 90.3712, "text": "And now Ed does nothing at all."}, {"t0": 90.837, "t1": 91.6601, "text": "He just lets it sit."}, {"t0": 92.2328, "t1": 96.173, "text": "At forty-five, it has grown to about sixty-nine thousand six hundred dollars."}, {"t0": 96.5698, "t1": 99.8451, "text": "At fifty-five, about one hundred thirty-nine thousand eight hundred."}, {"t0": 100.245, "t1": 103.858, "text": "And at sixty-five, about two hundred eighty-one thousand dollars."}, {"t0": 104.266, "t1": 106.874, "text": "From twenty-four thousand dollars of his own money."}, {"t0": 107.654, "t1": 108.198, "text": "Now Lia."}, {"t0": 108.654, "t1": 111.086, "text": "She starts at thirty-five, and she's disciplined."}, {"t0": 111.522, "t1": 112.38, "text": "Every single month,"}, {"t0": 112.713, "t1": 113.649, "text": "two hundred dollars,"}, {"t0": 113.966, "t1": 114.933, "text": "for thirty years."}, {"t0": 115.405, "t1": 118.689, "text": "At forty-five, she has about thirty-four thousand six hundred dollars."}, {"t0": 119.087, "t1": 120.846, "text": "That's what Ed had ten years earlier."}, {"t0": 121.306, "t1": 124.087, "text": "At fifty-five, about one hundred four thousand dollars."}, {"t0": 124.451, "t1": 128.167, "text": "And at sixty-five, about two hundred forty-four thousand dollars."}, {"t0": 128.569, "t1": 129.657, "text": "That's a great result."}, {"t0": 130.125, "t1": 133.205, "text": "But she put in seventy-two thousand dollars of her own money,"}, {"t0": 133.565, "t1": 135.291, "text": "and she still finished behind Ed."}, {"t0": 135.796, "t1": 136.117, "text": "Why?"}, {"t0": 136.769, "t1": 138.351, "text": "Look at Ed's last twenty years."}, {"t0": 138.814, "t1": 144.648, "text": "His balance climbed from thirty-four thousand to two hundred eighty-one thousand without him adding a single dollar."}, {"t0": 145.098, "t1": 147.437, "text": "Most of his final amount isn't money he saved."}, {"t0": 147.791, "t1": 149.444, "text": "It's growth on top of growth,"}, {"t0": 149.923, "t1": 151.106, "text": "and that needed time."}, {"t0": 151.421, "t1": 153.335, "text": "Lia put in three times as much,"}, {"t0": 153.725, "t1": 155.517, "text": "but her money had less time to roll."}, {"t0": 156.146, "t1": 157.635, "text": "So what does this mean for you?"}, {"t0": 158.302, "t1": 159.74, "text": "First, start early,"}, {"t0": 160.048, "t1": 160.933, "text": "even if it's small."}, {"t0": 161.527, "t1": 165.093, "text": "A small amount started early can beat a bigger amount started late."}, {"t0": 165.602, "t1": 168.162, "text": "Second, don't wait until you feel ready."}, {"t0": 168.724, "t1": 170.197, "text": "Ed didn't have a perfect plan."}, {"t0": 170.658, "t1": 171.365, "text": "He just started."}, {"t0": 171.894, "t1": 172.166, "text": "Third,"}, {"t0": 172.574, "t1": 173.594, "text": "if you're already late,"}, {"t0": 173.929, "t1": 174.445, "text": "don't give up."}, {"t0": 175.066, "t1": 179.4, "text": "Lia still ended up with a lot, and she's far better off than someone who never started."}, {"t0": 179.95, "t1": 182.035, "text": "The best time to begin was years ago."}, {"t0": 182.488, "t1": 184.194, "text": "The second best time is today."}, {"t0": 184.687, "t1": 185.15, "text": "And fourth,"}, {"t0": 185.662, "t1": 186.253, "text": "automate it."}, {"t0": 186.712, "t1": 189.51, "text": "Set up a monthly transfer so you never have to remember."}, {"t0": 190.067, "t1": 190.682, "text": "One last thing."}, {"t0": 191.179, "t1": 193.739, "text": "These numbers are an example, not a promise."}, {"t0": 194.17, "t1": 196.018, "text": "Real investments go up and down,"}, {"t0": 196.442, "t1": 197.749, "text": "fees and inflation matter,"}, {"t0": 198.139, "t1": 199.739, "text": "and this isn't financial advice."}, {"t0": 200.109, "t1": 202.606, "text": "It's a way to see why time matters so much."}, {"t0": 203.092, "t1": 205.315, "text": "If this helped, subscribe to Chalkonomics."}, {"t0": 205.784, "t1": 207.577, "text": "Next time, we'll talk about inflation,"}, {"t0": 207.932, "t1": 210.632, "text": "the quiet reason your money buys less every year."}, {"t0": 211.147, "t1": 211.879, "text": "See you then."}];
+const capWords=[];
+SEG.forEach(o=>{
+  const a=o.t0,b=o.t1,ws=o.text.split(" ").filter(Boolean), wt=ws.map(w=>w.length+1), tot=wt.reduce((x,y)=>x+y,0);
+  let acc=0; const tm=ws.map((w,i)=>{const t0=a+(b-a)*acc/tot; acc+=wt[i]; return [t0,a+(b-a)*acc/tot]});
+  let chunks=[],cur=[];
+  ws.forEach((w,i)=>{const len=cur.reduce((x,j)=>x+ws[j].length+1,0)+w.length;if(cur.length>=7||len>40){chunks.push(cur);cur=[]}cur.push(i)});
+  if(cur.length)chunks.push(cur);
+  chunks.forEach(ch=>{
+    const els=ch.map(i=>el("text",{"font-size":54,"font-weight":700,"letter-spacing":2,fill:W,stroke:"#000","stroke-width":12,"stroke-linejoin":"round","paint-order":"stroke",opacity:0},caps));
+    els.forEach((e,j)=>e.textContent=ws[ch[j]]);
+    const w=els.map(e=>e.getBBox().width), gap=18;
+    let total=w.reduce((x,y)=>x+y,0)+gap*(ch.length-1), sc=total>1500?1500/total:1;
+    let x=960-total*sc/2;
+    const end=tm[ch[ch.length-1]][1]+0.2;
+    els.forEach((e,j)=>{e.setAttribute("font-size",54*sc);e.setAttribute("x",x);e.setAttribute("y",1015);x+=(w[j]+gap)*sc;
+      capWords.push({e,t0:tm[ch[j]][0],t1:tm[ch[j]][1],end})});
+  });
 });
-const simplePts=[],compPts=[];
-for(let y=0;y<=30;y++){
-  const x=X0+CW*y/30;
-  simplePts.push([x,vy(1000+70*y)]);
-  compPts.push([x,vy(1000*Math.pow(1.07,y))]);
-}
-const fmt=a=>a.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ");
-const lcsR=el("rect",{x:0,y:0,width:0,height:1920},el("clipPath",{id:"lcs"},sg[3]));
-const lccR=el("rect",{x:0,y:0,width:0,height:1920},el("clipPath",{id:"lcc"},sg[3]));
-const gH=el("g",{"clip-path":"url(#lcc)"},sg[3]);
-el("polygon",{points:fmt(compPts)+" "+fmt(simplePts.slice().reverse()),fill:"url(#hatchC)"},gH);
-const gS=el("g",{"clip-path":"url(#lcs)"},sg[3]);
-el("polyline",{points:fmt(simplePts),fill:"none",stroke:W,"stroke-width":5,"stroke-linecap":"round","stroke-linejoin":"round"},gS);
-const gC=el("g",{"clip-path":"url(#lcc)"},sg[3]);
-el("polyline",{points:fmt(compPts),fill:"none",stroke:COR,"stroke-width":7,"stroke-linecap":"round","stroke-linejoin":"round"},gC);
-const SA=15.0,SB=17.2,LA=17.9,LB=20.6;
-const pops=[];
-[[10,1967],[20,3870],[30,7612]].forEach(([yr,val])=>{
-  const x=X0+CW*yr/30,y=vy(val);
-  pops.push({node:el("circle",{cx:x,cy:y,r:11,fill:COR},sg[3]),thr:yr/30,src:"c"});
-  const lab=el("text",{x:yr==30?x:x-12,y:y-30,"font-size":46,fill:COR,"text-anchor":"end","font-weight":700},sg[3]);
-  lab.textContent="$"+val.toLocaleString("en-US"); pops.push({node:lab,thr:yr/30,src:"c"});
-});
+{const wm=el("text",{x:1870,y:55,"font-size":30,fill:GRAY,"text-anchor":"end","font-weight":400,opacity:0.6,"letter-spacing":4},caps);wm.textContent="@chalkonomics";}
+
+// =====================================================
+// Scene 0 (0 - 18.4): the question
+// =====================================================
+kicker(0,"THE QUESTION",0.3,1.0);
+ground(0,100,1820,880,0.2,0.9);
+stickman(0,520,880,1.25,CYAN,0.0,idle(0));
+stickman(0,1400,880,1.25,PINK,0.1,idle(2),YEL);
+coin(0,300,690,95,YEL,2.6,"$24K",44,YEL);
+text(0,"stops forever",300,840,44,GRAY,3.7,4.6,"middle",700);
+coin(0,1640,640,150,YEL,6.3,"$72K",74,YEL);
+popText(0,"3× as much",1640,850,54,PINK,8.2);
+text(0,"Who ends up with more?",960,200,84,YEL,9.7,11.5);
+{const q=popText(0,"?",960,700,420,PINK,9.9);fadeOut(q,16.3,16.7);sfx.push({k:"pop",t:9.9});}
+star(0,960,330,40,CYAN,12.6); star(0,700,430,32,GRN,13.4); star(0,1220,420,36,PINK,14.2);
+text(0,"COMPOUND INTEREST",960,340,128,YEL,16.8,17.9);
+
+// =====================================================
+// Scene 1 (18.4 - 52.6): meet Ed and Lia
+// =====================================================
+const X=a=>360+(a-25)*36;
+kicker(1,"MEET THE FRIENDS",18.5,19.1);
+text(1,"Early Ed",60,438,56,CYAN,18.8,19.6,"start");
+text(1,"Late Lia",60,618,56,PINK,19.7,20.5,"start");
+path(1,`M${X(25)} 760 L${X(65)} 760`,W,6,20.9,22.4);
+[25,35,45,55,65].forEach(a=>{const t=el("text",{x:X(a),y:815,"font-size":40,fill:LG,"text-anchor":"middle","font-weight":700},sg[1]);t.textContent=a;fade(t,21.0,22.4)});
+{const t=el("text",{x:1835,y:815,"font-size":30,fill:GRAY,"text-anchor":"start","font-weight":700},sg[1]);t.textContent="age";fade(t,21.0,22.4)}
+text(1,"$200 a month · 7% a year",960,250,62,YEL,22.5,26.3);
+hbar(1,X(25),X(35),420,64,YEL,27.1,29.5);
+text(1,"$200 / month",(X(25)+X(35))/2,432,36,W,28.4,29.6);
+path(1,`M${X(35)-18} 402 L${X(35)+18} 438 M${X(35)+18} 402 L${X(35)-18} 438`,PINK,10,30.1,30.6);
+path(1,`M${X(35)+40} 420 L${X(65)} 420`,GRAY,6,30.4,31.5);
+text(1,"no more deposits",(X(35)+X(65))/2,385,40,GRAY,31.6,33.0);
+path(1,`M${X(25)} 600 L${X(35)-10} 600`,GRAY,6,35.7,36.5);
+text(1,"waiting...",(X(25)+X(35))/2,565,40,GRAY,35.8,36.6);
+hbar(1,X(35),X(65),600,64,YEL,37.4,45.0);
+text(1,"$200 / month",X(45),612,36,W,38.6,39.8);
+path(1,`M${X(35)} 690 L${X(65)} 690 M${X(35)} 674 L${X(35)} 706 M${X(65)} 674 L${X(65)} 706`,PINK,6,41.2,44.6);
+text(1,"30 years of deposits",X(50),725,40,PINK,42.0,44.8);
+text(1,"7% a year is just an example.",960,880,44,W,45.7,48.6);
+text(1,"Real returns go up and down.",960,930,44,GRAY,49.1,52.0);
+
+// =====================================================
+// Scene 2 (52.6 - 78.4): the snowball
+// =====================================================
+kicker(2,"THE IDEA",52.7,53.3);
+text(2,"How compound interest works",960,178,72,W,52.9,55.8);
+const gh=el("g",{},sg[2]); fadeOut(gh,67.3,67.9);
+const H=[[240,360],[700,380],[1100,600],[1700,800]];
+const bez=u=>{const m=1-u;return [0,1].map(i=>m*m*m*H[0][i]+3*m*m*u*H[1][i]+3*m*u*u*H[2][i]+u*u*u*H[3][i])};
+const bezT=u=>{const m=1-u;return [0,1].map(i=>3*m*m*(H[1][i]-H[0][i])+6*m*u*(H[2][i]-H[1][i])+3*u*u*(H[3][i]-H[2][i]))};
+path(gh,`M${H[0][0]} ${H[0][1]} C ${H[1][0]} ${H[1][1]} ${H[2][0]} ${H[2][1]} ${H[3][0]} ${H[3][1]}`,W,8,56.4,58.2);
 {
-  pops.push({node:el("circle",{cx:X0+CW,cy:vy(3100),r:10,fill:W},sg[3]),thr:1,src:"s"});
-  const l=el("text",{x:X0+CW,y:vy(3100)+130,"font-size":42,fill:LG,"text-anchor":"end","font-weight":400},sg[3]);
-  l.textContent="Simple: $3,100"; pops.push({node:l,thr:1,src:"s"});
-  const l2=el("text",{x:X0+CW,y:vy(7612)-92,"font-size":40,fill:GRAY,"text-anchor":"end","font-weight":400},sg[3]);
-  l2.textContent="Compound"; pops.push({node:l2,thr:1,src:"c"});
+  const g=popG(gh,0,0,58.4); g.setAttribute("data-fixed","1");
+  const c=el("circle",{r:20,fill:"#ffffff","fill-opacity":0.25,stroke:W,"stroke-width":8},g);
+  const m=el("circle",{r:4,fill:W},g);
+  items.push({k:"ball",g,c,m,t0:58.4,t1:67.0});
 }
-sfx.push({k:"ding",t:SB-0.1,n:0});
-[1/3,2/3,1].forEach((thr,i)=>{
-  for(let t=LA;t<=LB;t+=0.01){ if(ease(prog(t,LA,LB))>=thr-0.02){ sfx.push({k:"ding",t,n:i}); break; } }
-});
-star(3,300,960,14,20.8); star(3,520,860,16,21.1);
-text(3,"+$4,512 extra, from time alone",540,1590,50,COR,21.5,24.0,"middle",400);
+text(gh,"tiny",300,270,46,W,58.8,59.8);
+text(gh,"bigger = more snow each turn",1150,330,46,CYAN,62.8,65.6);
+text(gh,"like money!",1600,490,46,YEL,66.4,67.2);
+{
+  const gm=el("g",{},sg[2]);
+  coin(gm,520,500,110,YEL,68.2,"$",110,YEL);
+  text(gm,"your money",520,690,46,YEL,68.4,69.4);
+  arrow(gm,650,500,790,500,LG,68.8,69.2);
+  coin(gm,900,500,70,GRN,69.0,"$",70,GRN);
+  text(gm,"interest",900,640,46,GRN,69.2,69.9);
+  arrow(gm,990,500,1130,500,LG,70.0,70.4);
+  coin(gm,1230,500,46,PINK,70.5);
+  text(gm,"interest on interest",1230,700,46,PINK,70.7,72.0);
+  arrow(gm,1300,500,1430,500,LG,72.3,72.7);
+  coin(gm,1560,500,80,PINK,72.9,"$",80,PINK);
+  star(gm,1710,420,34,YEL,73.8);
+  arrowQ(gm,420,900,1150,900,1560,690,YEL,75.4,77.9);
+  text(gm,"faster and faster",900,830,52,YEL,76.3,78.0);
+  gm.setAttribute("opacity",1);
+}
 
-// ---------- Scene 4: rule of 72 ----------
-kicker(4,"4 · THE SHORTCUT",24.85,25.3);
-text(4,"Divide 72 by the rate,",540,520,84,W,24.9,26.0);
-text(4,"get years to double.",540,625,84,COR,25.9,26.9);
-coin(4,170,900,70,W,26.4,26.9,"$",70,COR);
-arrow(4,260,900,340,900,LG,26.8,27.1);
-path(4,circ(470,900,80),W,4,27.0,27.5);
-path(4,"M470 900 L470 845 M470 900 L510 920",W,4,27.5,27.8);
-text(4,"10 yrs",470,1030,40,LG,27.6,28.0,"middle",400);
-arrow(4,570,900,650,900,LG,27.9,28.2);
-coin(4,730,900,44,W,28.1,28.5,"$",44,COR);
-coin(4,830,900,44,W,28.4,28.8,"$",44,COR);
-text(4,"72 ÷ 7 ≈ 10",540,1230,120,W,28.6,29.6);
-text(4,"years to double your money",540,1320,48,LG,30.7,31.7,"middle",400);
-text(4,"$1,000 → about $2,000",540,1420,52,COR,31.8,32.6,"middle",400);
+// =====================================================
+// Scene 3 (78.4 - 107.4): Early Ed
+// =====================================================
+const BX=[760,1020,1280,1540], BASE=860, PK=560/281; // px per $K
+kicker(3,"EARLY ED",78.5,79.1);
+text(3,"10 years of saving, then nothing",960,170,64,W,78.9,83.0);
+ground(3,120,1840,BASE,78.5,79.2);
+stickman(3,300,BASE,1.25,CYAN,78.7,idle(0));
+["age 35","age 45","age 55","age 65"].forEach((l,i)=>{const t=el("text",{x:BX[i],y:BASE+55,"font-size":40,fill:LG,"text-anchor":"middle","font-weight":700},sg[3]);t.textContent=l;fade(t,80.0,81.0)});
+{const g=el("g",{},sg[3]);
+ el("rect",{x:560,y:228,width:28,height:28,fill:YEL,"fill-opacity":0.5,stroke:YEL,"stroke-width":4},g);
+ text(g,"what Ed saved",604,254,38,YEL,80.0,81.5,"start");
+ const g2=el("g",{},sg[3]);
+ el("rect",{x:560,y:278,width:28,height:28,fill:GRN,"fill-opacity":0.5,stroke:GRN,"stroke-width":4},g2);
+ text(g2,"growth",604,304,38,GRN,83.6,84.6,"start");}
+sbar(3,BX[0],170,BASE,24*PK,10.6*PK,80.2,83.0,84.0,86.4);
+countK(3,BX[0],BASE-34.6*PK-26,50,YEL,84.0,86.4,24000,34617);
+sbar(3,BX[1],170,BASE,24*PK,45.6*PK,92.0,92.4,92.4,95.8);
+countK(3,BX[1],BASE-69.6*PK-26,50,YEL,92.4,95.8,34617,69568);
+sbar(3,BX[2],170,BASE,24*PK,115.8*PK,96.5,96.7,96.7,99.5);
+countK(3,BX[2],BASE-139.8*PK-26,50,YEL,96.7,99.5,69568,139809);
+sbar(3,BX[3],170,BASE,24*PK,257*PK,100.0,100.2,100.2,103.6);
+countK(3,BX[3],BASE-281*PK-26,56,YEL,100.2,103.6,139809,280968);
+star(3,640,520,34,CYAN,87.7);
+{const gz=el("g",{},sg[3]);fadeOut(gz,91.8,92.4);text(gz,"z z z",300,420,70,GRAY,89.0,91.6);text(gz,"no new deposits",1150,395,44,CYAN,88.8,91.5);arrow(gz,860,430,1440,430,CYAN,89.0,91.5);}
+text(3,"$24K",1760,790,60,YEL,104.4,105.3);
+text(3,"his own money",1760,832,34,YEL,104.8,106.0);
+text(3,"$257K",1760,560,60,GRN,106.0,106.9);
+text(3,"pure growth",1760,604,34,GRN,106.3,107.2);
 
-// ---------- Scene 5: takeaway ----------
-kicker(5,"5 · THE TAKEAWAY",33.3,33.8);
-text(5,"Start early.",540,520,112,W,33.3,34.1);
-text(5,"Let time do the work.",540,640,84,COR,34.4,35.7);
-ground(5,1390,34.9,35.3);
-path(5,"M440 1240 L640 1240 L618 1390 L462 1390 Z",W,4,35.1,35.7);
-shade(5,"M540 1240 L640 1240 L618 1390 L540 1390 Z","hatch",35.7,36.0);
-path(5,"M540 1240 C 540 1130 548 1030 540 920",W,4,35.6,36.2);
-path(5,"M541 1150 C 470 1145 430 1095 428 1035 C 500 1035 536 1085 541 1150",W,4,36.1,36.5);
-path(5,"M543 1080 C 612 1075 652 1025 654 965 C 582 965 546 1015 543 1080",W,4,36.3,36.7);
-coin(5,540,830,85,W,36.4,37.0,"$",84,COR);
-star(5,330,760,14,36.9); star(5,760,720,16,37.0); star(5,780,950,12,37.1);
-text(5,"Example only · not financial advice",540,1520,38,GRAY,36.6,37.4,"middle",400);
+// =====================================================
+// Scene 4 (107.4 - 135.5): Late Lia
+// =====================================================
+kicker(4,"LATE LIA",107.5,108.1);
+text(4,"Lia starts at 35 and never skips",960,170,64,W,108.7,111.2);
+ground(4,120,1840,BASE,107.5,108.2);
+stickman(4,300,BASE,1.25,PINK,107.7,idle(1),YEL);
+["age 35","age 45","age 55","age 65"].forEach((l,i)=>{const t=el("text",{x:BX[i],y:BASE+55,"font-size":40,fill:LG,"text-anchor":"middle","font-weight":700},sg[4]);t.textContent=l;fade(t,108.4,109.2)});
+{const g=el("g",{},sg[4]);
+ el("rect",{x:560,y:228,width:28,height:28,fill:YEL,"fill-opacity":0.5,stroke:YEL,"stroke-width":4},g);
+ text(g,"what Lia saved",604,254,38,YEL,109.4,110.6,"start");
+ const g2=el("g",{},sg[4]);
+ el("rect",{x:560,y:278,width:28,height:28,fill:GRN,"fill-opacity":0.5,stroke:GRN,"stroke-width":4},g2);
+ text(g2,"growth",604,304,38,GRN,116.0,117.0,"start");}
+popText(4,"$0",BX[0],BASE-24,48,GRAY,109.0);
+{const gA=el("g",{},sg[4]);fadeOut(gA,115.3,115.9);text(gA,"$200 every month",1100,400,58,YEL,111.5,113.6);text(gA,"for 30 years",1100,470,58,PINK,114.0,114.9);path(gA,`M${BX[0]} 975 L${BX[3]} 975 M${BX[0]} 959 L${BX[0]} 991 M${BX[3]} 959 L${BX[3]} 991`,PINK,6,112.7,114.9);}
+sbar(4,BX[1],170,BASE,24*PK,10.6*PK,115.4,115.9,116.0,118.6);
+countK(4,BX[1],BASE-34.6*PK-26,50,YEL,116.0,118.6,24000,34617);
+{const gE=el("g",{},sg[4]);fadeOut(gE,121.0,121.5);text(gE,"= what Ed had at 35",BX[1],BASE-34.6*PK-110,42,CYAN,119.1,120.8);}
+sbar(4,BX[2],170,BASE,48*PK,56.2*PK,121.3,121.7,121.7,123.6);
+countK(4,BX[2],BASE-104.2*PK-26,50,YEL,121.7,123.6,34617,104185);
+sbar(4,BX[3],170,BASE,72*PK,172*PK,124.8,125.2,125.2,127.6);
+countK(4,BX[3],BASE-244*PK-26,56,YEL,125.2,127.6,104185,243994);
+star(4,1700,420,34,YEL,128.7); star(4,1100,330,28,CYAN,128.9);
+text(4,"$72K",1760,790,60,YEL,130.3,131.2);
+text(4,"her own money",1760,832,34,YEL,130.8,132.4);
+path(4,`M1440 ${BASE-281*PK} L1700 ${BASE-281*PK}`,CYAN,6,133.7,134.5);
+text(4,"Ed: $281K",1570,BASE-281*PK-24,46,CYAN,133.8,135.2);
 
+// =====================================================
+// Scene 5 (135.5 - 155.9): why
+// =====================================================
+kicker(5,"THE WHY",135.6,136.1);
+{const w=popText(5,"Why?",960,420,240,PINK,135.7);fadeOut(w,138.4,138.8);sfx.push({k:"pop",t:135.7});}
+text(5,"Ed's last 20 years: no deposits",960,170,64,CYAN,136.8,138.4);
+{const g=el("g",{},sg[5]);fadeOut(g,144.6,145.0);
+ text(g,"Ed's balance, age 35 → 65",960,420,50,GRAY,138.8,140.0);
+ countK(g,960,590,170,GRN,139.0,144.4,34617,280968);}
+const B2=900;
+ground(5,300,1700,B2,144.8,145.4);
+text(5,"Ed",720,B2+58,46,CYAN,145.2,145.8);
+text(5,"Lia",1200,B2+58,46,PINK,151.2,151.8);
+sbar(5,720,250,B2,24*PK,257*PK,145.4,146.0,146.0,147.3);
+popText(5,"$281K",720,B2-281*PK-26,56,YEL,147.2);
+text(5,"saved: $24K",575,B2-14,40,YEL,146.4,147.4,"end");
+text(5,"$257K",720,B2-150*PK-10,58,GRN,147.8,148.8);
+text(5,"growth",720,B2-150*PK+36,38,GRN,148.2,149.2);
+{const g=el("g",{},sg[5]);
+ path(g,circ(960,560,52),CYAN,8,149.9,150.5);
+ path(g,"M960 560 L960 524 M960 560 L986 576",CYAN,8,150.3,150.8);
+ text(g,"needs time",960,670,36,CYAN,150.4,151.2);}
+sbar(5,1200,250,B2,72*PK,172*PK,151.4,152.1,152.1,153.3);
+popText(5,"$244K",1200,B2-244*PK-26,56,YEL,153.2);
+text(5,"saved: $72K",1345,B2-40,40,YEL,152.0,153.1,"start");
+text(5,"$172K",1200,B2-110*PK-10,58,GRN,153.7,154.6);
+text(5,"growth",1200,B2-110*PK+36,38,GRN,154.0,154.9);
+text(5,"less time to roll",1700,540,48,PINK,153.9,155.6,"middle",700);
+
+// =====================================================
+// Scene 6 (155.9 - 190.0): what you can do
+// =====================================================
+kicker(6,"WHAT YOU CAN DO",156.0,156.6);
+text(6,"So what does this mean for you?",960,170,70,W,156.1,157.7);
+const CX=[300,740,1180,1620];
+function card(i,col,num,l1,l2,t0,icon){
+  const c=CX[i], g=popG(6,c,550,t0);
+  el("rect",{x:c-190,y:270,width:380,height:560,rx:30,fill:col,"fill-opacity":0.08,stroke:col,"stroke-width":7},g);
+  el("circle",{cx:c,cy:340,r:46,fill:"none",stroke:col,"stroke-width":7},g);
+  const n=el("text",{x:c,y:360,"font-size":58,fill:col,"text-anchor":"middle","font-weight":700},g);n.textContent=num;
+  icon(g,c,540,col);
+  const a=el("text",{x:c,y:710,"font-size":50,fill:W,"text-anchor":"middle","font-weight":700},g);a.textContent=l1;
+  const b=el("text",{x:c,y:770,"font-size":38,fill:LG,"text-anchor":"middle","font-weight":400},g);b.textContent=l2;
+  sfx.push({k:"pop",t:t0});
+}
+const L=(g,d,col,w=8)=>el("path",{d,fill:"none",stroke:col,"stroke-width":w,"stroke-linecap":"round","stroke-linejoin":"round"},g);
+card(0,YEL,"1","Start early","even if it's small",158.2,(g,c,y,col)=>{L(g,`M${c} ${y+90} C ${c} ${y+30} ${c+6} ${y-20} ${c} ${y-60}`,GRN,10);L(g,`M${c} ${y+20} C ${c-60} ${y+15} ${c-90} ${y-30} ${c-92} ${y-70} C ${c-30} ${y-70} ${c-4} ${y-25} ${c} ${y+20}`,GRN,8);L(g,`M${c} ${y-10} C ${c+60} ${y-15} ${c+90} ${y-60} ${c+92} ${y-100} C ${c+30} ${y-100} ${c+4} ${y-55} ${c} ${y-10}`,GRN,8);});
+card(1,CYAN,"2","Don't wait","until you feel ready",165.3,(g,c,y,col)=>{L(g,`M${c-40} ${y+90} L${c-40} ${y-80}`,col,10);L(g,`M${c-40} ${y-80} L${c+70} ${y-45} L${c-40} ${y-10} Z`,col,8);});
+card(2,GRN,"3","Already late?","don't give up",171.8,(g,c,y,col)=>{el("circle",{cx:c,cy:y,r:75,fill:"none",stroke:col,"stroke-width":9},g);L(g,`M${c} ${y} L${c} ${y-45} M${c} ${y} L${c+32} ${y+18}`,col,9);});
+card(3,PINK,"4","Automate it","monthly transfer",184.6,(g,c,y,col)=>{L(g,`M${c+70} ${y-10} A 70 70 0 1 0 ${c+10} ${y+68}`,col,10);L(g,`M${c+40} ${y-40} L${c+72} ${y-8} L${c+96} ${y-46}`,col,9);});
+text(6,"The best time to begin was years ago.",960,890,50,GRAY,179.9,182.0);
+text(6,"The second best time is today.",960,950,56,YEL,182.5,184.4);
+
+// =====================================================
+// Scene 7 (190.0 - 202.9): one last thing
+// =====================================================
+kicker(7,"ONE LAST THING",190.05,190.6);
+text(7,"These numbers are an example",960,200,70,W,190.2,193.6);
+const LI=[[YEL,"An example, not a promise.",191.2,330],[CYAN,"Real returns go up and down.",194.2,450],[GRN,"Fees and inflation matter.",196.4,570],[PINK,"This isn't financial advice.",198.1,690]];
+LI.forEach(([c,t,t0,y])=>{const d=el("circle",{cx:250,cy:y-18,r:16,fill:c,opacity:0},sg[7]);fade(d,t0,t0+0.3);text(7,t,300,y,62,c,t0,t0+1.6,"start");});
+path(7,"M1180 640 L1280 520 L1360 600 L1460 400 L1560 560 L1640 470 L1760 330",CYAN,9,194.3,196.0);
+text(7,"It shows why time matters so much.",960,880,66,YEL,200.1,202.6);
+path(7,"M420 905 Q 960 935 1500 903",YEL,8,201.8,202.7);
+
+// =====================================================
+// Scene 8 (202.9 - end): subscribe
+// =====================================================
+coin(8,960,400,150,YEL,203.2,"C",160,PINK);
+text(8,"Chalkonomics",960,690,130,W,203.8,205.2);
+{const g=popG(8,960,830,205.0);
+ el("rect",{x:740,y:780,width:440,height:100,rx:50,fill:PINK,"fill-opacity":0.25,stroke:PINK,"stroke-width":8},g);
+ const t=el("text",{x:960,y:848,"font-size":56,fill:W,"text-anchor":"middle","font-weight":700},g);t.textContent="Subscribe";sfx.push({k:"pop",t:205.0});}
+stickman(8,300,880,1.1,CYAN,203.5,wave);
+stickman(8,1620,880,1.1,PINK,203.6,(t)=>[140+22*Math.sin(2*Math.PI*2.4*t+1),-20],YEL);
+text(8,"Next: inflation",960,935,56,CYAN,205.8,207.6);
+star(8,700,560,34,YEL,208.0); star(8,1230,540,38,GRN,208.4); star(8,960,250,30,PINK,211.2);
+
+// ---------- render ----------
 let lastSeed=-1;
+const cubicPos=bez;
 function render(t){
   const seed=Math.floor(t*8)%40+1;
-  if(seed!==lastSeed){lastSeed=seed;document.getElementById("t1").setAttribute("seed",seed)}
+  if(seed!==lastSeed){lastSeed=seed;document.getElementById("t1").setAttribute("seed",seed);document.getElementById("t2").setAttribute("seed",seed)}
   scenes.forEach((s,i)=>{
     const a=Math.min(prog(t,s.a,s.a+0.25),1-prog(t,s.o,s.e));
     sg[i].setAttribute("opacity",(t>=s.a&&t<=s.e)?(i==0?1-prog(t,s.o,s.e):a):0);
     sg[i].style.display=(t>=s.a-0.01&&t<=s.e)?"":"none";
   });
   items.forEach(it=>{
-    if(it.k==="text"){
-      it.r.setAttribute("width",Math.max(0,(it.bb.width+20)*ease(prog(t,it.t0,it.t1))));
-    }else if(it.k==="path"){
-      const p=ease(prog(t,it.t0,it.t1));
-      it.p.setAttribute("stroke-dashoffset",1-p);
-      it.p.setAttribute("opacity",p>0?1:0);
-    }else if(it.k==="fadeIn"){
-      it.node.setAttribute("opacity",prog(t,it.t0,it.t1));
+    switch(it.k){
+    case "text": it.r.setAttribute("width",Math.max(0,(it.bb.width+20)*ease(prog(t,it.t0,it.t1)))); break;
+    case "path":{const p=ease(prog(t,it.t0,it.t1));it.p.setAttribute("stroke-dashoffset",1-p);it.p.setAttribute("opacity",p>0?1:0);break}
+    case "fadeIn": it.node.setAttribute("opacity",prog(t,it.t0,it.t1)); break;
+    case "fadeOut": it.node.setAttribute("opacity",1-prog(t,it.t0,it.t1)); break;
+    case "pop":{
+      const p=(t-it.t0)/0.45; const sc=p<=0?0:p>=1?1:1+2.70158*Math.pow(p-1,3)+1.70158*Math.pow(p-1,2);
+      it.g.setAttribute("opacity",sc>0?1:0);
+      if(!it.g.getAttribute("data-fixed")) it.g.setAttribute("transform",`translate(${it.cx} ${it.cy}) scale(${Math.max(sc,0.001)}) translate(${-it.cx} ${-it.cy})`);
+      break}
+    case "count":{const v=it.from+(it.to-it.from)*ease(prog(t,it.t0,it.t1));it.node.textContent=fmtK(v);break}
+    case "stick":{
+      const [r,l]=it.fn(t), ex=a=>[it.cx+it.L*Math.sin(rad(a)), it.sy+it.L*Math.cos(rad(a))];
+      const [rx,ry]=ex(r),[lx,ly]=ex(l);
+      it.ra.setAttribute("d",`M${it.cx} ${it.sy} L${rx} ${ry}`); it.la.setAttribute("d",`M${it.cx} ${it.sy} L${lx} ${ly}`); break}
+    case "hbar": it.r.setAttribute("width",Math.max(0,(it.x1-it.x0)*ease(prog(t,it.t0,it.t1)))); it.r.setAttribute("opacity",t>=it.t0?1:0); break;
+    case "sbar":{
+      const py=ease(prog(t,it.ty0,it.ty1)), pg=ease(prog(t,it.tg0,it.tg1));
+      const hy=it.hy*py, hg=it.hg*pg;
+      it.ry.setAttribute("y",it.base-hy); it.ry.setAttribute("height",Math.max(0,hy)); it.ry.setAttribute("opacity",hy>1?1:0);
+      it.rg.setAttribute("y",it.base-it.hy*py-hg); it.rg.setAttribute("height",Math.max(0,hg)); it.rg.setAttribute("opacity",hg>1?1:0); break}
+    case "ball":{
+      const p=(t-it.t0)/0.45; const sc=p<=0?0:p>=1?1:1+2.70158*Math.pow(p-1,3)+1.70158*Math.pow(p-1,2);
+      const u=ease(prog(t,it.t0+0.3,it.t1)), r=(24+130*Math.pow(u,1.7))*Math.max(sc,0.001);
+      const [px,py]=cubicPos(u), [tx,ty]=bezT(u); let nx=-ty, ny=tx; const nl=Math.hypot(nx,ny); nx/=nl; ny/=nl; if(ny>0){nx=-nx;ny=-ny}
+      const cx=px+nx*(r-2), cy=py+ny*(r-2);
+      it.c.setAttribute("cx",cx); it.c.setAttribute("cy",cy); it.c.setAttribute("r",r);
+      const phi=u*1700/Math.max(r,1)*1.0; it.m.setAttribute("cx",cx+r*0.6*Math.cos(phi)); it.m.setAttribute("cy",cy+r*0.6*Math.sin(phi)); it.m.setAttribute("r",Math.max(3,r*0.1));
+      it.g.setAttribute("opacity",sc>0?1:0); break}
     }
   });
-  const ps=ease(prog(t,SA,SB)), cp=ease(prog(t,LA,LB));
-  lcsR.setAttribute("width",X0+CW*ps+14);
-  lccR.setAttribute("width",X0+CW*cp+14);
-  pops.forEach(p=>{const v=p.src==="s"?ps:cp;p.node.setAttribute("opacity",clamp((v-p.thr+0.02)/0.05))});
+  capWords.forEach(c=>{
+    const on=t>=c.t0&&t<=c.end;
+    c.e.setAttribute("opacity",on?1:0);
+    c.e.setAttribute("fill",(t>=c.t0&&t<c.t1+0.05)?YEL:W);
+  });
 }
 window.render=render;
-sfx.push({k:"end",t:36.9});
-scenes.slice(0,5).forEach(s=>sfx.push({k:"wh",t:s.o}));
+sfx.push({k:"end",t:211.3});
+scenes.slice(1).forEach(s=>sfx.push({k:"wh",t:s.a-0.1}));
 window.getSfx=()=>JSON.stringify(sfx);
-window.DURATION=37.6;
+window.DURATION=212.0; window.FPS=24; window.VIDEO_W=1920; window.VIDEO_H=1080;
 </script>
 </body></html>
